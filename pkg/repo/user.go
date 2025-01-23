@@ -1,6 +1,6 @@
 //REalesation User config + funk like Create, Auth, Update and delete
 
-package main
+package repo
 
 import (
 	"errors"
@@ -10,9 +10,9 @@ import (
 )
 
 type User struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-	Password string `json:"password"`
+	ID       string `json:"id,omitempty"`
+	Name     string `json:"username,omitempty"`
+	Password string `json:"password,omitempty"`
 	Email    string `json:"email,omitempty"`
 }
 
@@ -24,7 +24,7 @@ var (
 // find user in User Data by name
 func findUserByUsername(username string) (User, bool) {
 	for _, user := range UserData {
-		if user.Username == username {
+		if user.Name == username {
 			return user, true
 		}
 	}
@@ -44,7 +44,7 @@ func CreateUser(username, password, email string) (User, error) {
 	id := uuid.New().String()
 	user := User{
 		ID:       id,
-		Username: username,
+		Name:     username,
 		Password: password,
 		Email:    email,
 	}
@@ -75,7 +75,7 @@ func UpdateUser(id string, newUsername, newPassword, newEmail string) error {
 	}
 
 	if newUsername != "" {
-		user.Username = newUsername
+		user.Name = newUsername
 	}
 	if newPassword != "" {
 		user.Password = newPassword
