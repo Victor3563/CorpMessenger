@@ -3,100 +3,100 @@
 package repo
 
 import (
+	"database/sql"
 	"errors"
-	"sync"
-
-	"github.com/google/uuid"
 )
 
 type User struct {
-	ID       string `json:"id,omitempty"`
-	Name     string `json:"username,omitempty"`
-	Password string `json:"password,omitempty"`
-	Email    string `json:"email,omitempty"`
+	ID       int    `json:"id"`
+	Name     string `json:"username"`
+	Password string `json:"password"`
+	Email    string `json:"email"`
 }
 
-var (
-	UserData = make(map[string]User)
-	mu       sync.Mutex
-)
+// Repository инкапсулирует работу с БД
+type Repository struct {
+	DB *sql.DB
+}
 
-// find user in User Data by name
-func findUserByUsername(username string) (User, bool) {
-	for _, user := range UserData {
-		if user.Name == username {
-			return user, true
-		}
-	}
-	return User{}, false
+// NewRepository возвращает новый объект Repository
+func NewRepository(db *sql.DB) *Repository {
+	return &Repository{DB: db}
 }
 
 // Create new user
-func CreateUser(username, password, email string) (User, error) {
-	mu.Lock()
-	defer mu.Unlock()
-
+func (r *Repository) CreateUser(username, password, email string) (User, error) {
 	// Check if username already exists
-	if _, exists := findUserByUsername(username); exists {
+	var exists bool
+	err := r.DB.QueryRow("SELECT EXISTS(SELECT 1 FROM users WHERE username=$1)", username).Scan(&exists)
+	if err != nil {
+		return User{}, err
+	}
+	if exists {
 		return User{}, errors.New("username already exists")
 	}
 
-	id := uuid.New().String()
-	user := User{
-		ID:       id,
-		Name:     username,
-		Password: password,
-		Email:    email,
+	var user User
+	query := `
+	INSERT INTO users (username, password, email)
+	VALUES ($1, $2, $3)
+	RETURNING id, username, password, email;
+	`
+	err = r.DB.QueryRow(query, username, password, email).Scan(&user.ID, &user.Name, &user.Password, &user.Email)
+	if err != nil {
+		return User{}, err
 	}
-	UserData[id] = user
 	return user, nil
 }
 
 // AuthenticateUser checks if a username and password are correct
-func AuthenticateUser(username, password string) (User, error) {
-	mu.Lock()
-	defer mu.Unlock()
-
-	user, exists := findUserByUsername(username)
-	if !exists || user.Password != password {
+func (r *Repository) AuthenticateUser(username, password string) (User, error) {
+	var user User
+	query := `SELECT id, username, password, email FROM users WHERE username=$1`
+	err := r.DB.QueryRow(query, username).Scan(&user.ID, &user.Name, &user.Password, &user.Email)
+	if err != nil {
 		return User{}, errors.New("invalid username or password")
+	}
+	if user.Password != password {
+		return User{}, errors.New("password")
 	}
 	return user, nil
 }
 
 // UpdateUser updates user attributes in the store
-func UpdateUser(id string, newUsername, newPassword, newEmail string) error {
-	mu.Lock()
-	defer mu.Unlock()
-
-	user, exists := UserData[id]
-	if !exists {
+func (r *Repository) UpdateUser(id int, newUsername, newPassword, newEmail string) error {
+	query := `
+			UPDATE users
+			SET username=$1, password=$2, email=$3, updated_at=NOW()
+			WHERE id = $4
+	`
+	res, err := r.DB.Exec(query, newUsername, newPassword, newEmail, id)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
 		return errors.New("user not found")
 	}
-
-	if newUsername != "" {
-		user.Name = newUsername
-	}
-	if newPassword != "" {
-		user.Password = newPassword
-	}
-	if newEmail != "" {
-		user.Email = newEmail
-	}
-
-	UserData[id] = user
 	return nil
 }
 
 // DeleteUser removes a user from the Data
-func DeleteUser(id string) error {
-	mu.Lock()
-	defer mu.Unlock()
-
-	if _, exists := UserData[id]; !exists {
+func (r *Repository) DeleteUser(id int) error {
+	query := `DELETE FROM users WHERE id=$1`
+	res, err := r.DB.Exec(query, id)
+	if err != nil {
+		return err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if affected == 0 {
 		return errors.New("user not found")
 	}
-
-	delete(UserData, id)
 	return nil
 }

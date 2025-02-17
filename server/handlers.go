@@ -10,6 +10,8 @@ import (
 	"github.com/Victor3563/CorpMessenger/root"
 )
 
+var Repo *repo.Repository
+
 // regist new user by User.Create and write it to server
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Server regist comand get")
@@ -18,7 +20,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	user, err := repo.CreateUser(req.Name, req.Password, req.Email)
+	user, err := Repo.CreateUser(req.Name, req.Password, req.Email)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -37,7 +39,7 @@ func AuthHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := repo.AuthenticateUser(req.Name, req.Password)
+	user, err := Repo.AuthenticateUser(req.Name, req.Password)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -62,7 +64,7 @@ func UpdateUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := repo.UpdateUser(req.ID, req.Name, req.Password, req.Email); err != nil {
+	if err := Repo.UpdateUser(req.ID, req.Name, req.Password, req.Email); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -84,7 +86,7 @@ func DeleteUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := repo.DeleteUser(req.ID); err != nil {
+	if err := Repo.DeleteUser(req.ID); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
