@@ -6,13 +6,23 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/Victor3563/CorpMessenger/config"
 	"github.com/Victor3563/CorpMessenger/pkg/repo"
 	"github.com/Victor3563/CorpMessenger/server"
 	_ "github.com/lib/pq"
 )
 
-func main() {
-	connStr := "postgres://user:password@localhost:5432/messenger?sslmode=disable"
+func start_rep() {
+	config, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	//!!!! Вроде я правильно все понял, но как то пугает. Честно не доконца понял
+	//как с viper работать. Чисто по гайдам работал, но будто много чего упустил
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		config.Database.User, config.Database.Password, config.Database.Host, config.Database.Port,
+		config.Database.DBName, config.Database.SSLMode)
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -24,20 +34,13 @@ func main() {
 
 	// Инициализация репозитория и передача его в глобальную переменную обработчиков
 	repoInstance := repo.NewRepository(db)
-	server.Repo = repoInstance
+	server.InitRoutes(repoInstance)
 
-	// Роуты для пользователей
-	http.HandleFunc("/register", server.RegisterHandler)
-	http.HandleFunc("/auth", server.AuthHandler)
-	http.HandleFunc("/updateUser", server.UpdateUserHandler)
-	http.HandleFunc("/deleteUser", server.DeleteUserHandler)
+	addr := fmt.Sprintf(":%d", config.Server.Port)
+	fmt.Printf("Server started at %s\n", addr)
+	log.Fatal(http.ListenAndServe(addr, nil))
+}
 
-	// Роуты для чатов
-	http.HandleFunc("/createChat", server.CreateChatHandler)
-	http.HandleFunc("/deleteChat", server.DeleteChatHandler)
-	http.HandleFunc("/addMember", server.AddMemberHandler)
-	http.HandleFunc("/removeMember", server.RemoveMemberHandler)
-
-	fmt.Println("Server started at :8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+func main() {
+	start_rep()
 }

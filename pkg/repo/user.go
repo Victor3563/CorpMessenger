@@ -37,11 +37,10 @@ func (r *Repository) CreateUser(username, password, email string) (User, error) 
 	}
 
 	var user User
-	query := `
-	INSERT INTO users (username, password, email)
+	query := `INSERT INTO users (username, password, email)
 	VALUES ($1, $2, $3)
-	RETURNING id, username, password, email;
-	`
+	RETURNING id, username, password, email;`
+
 	err = r.DB.QueryRow(query, username, password, email).Scan(&user.ID, &user.Name, &user.Password, &user.Email)
 	if err != nil {
 		return User{}, err

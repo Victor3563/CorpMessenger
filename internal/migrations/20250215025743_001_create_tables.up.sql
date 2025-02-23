@@ -1,5 +1,5 @@
 -- Создание таблицы пользователей
-CREATE TABLE IF NOT EXISTS users (
+CREATE TABLE users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password VARCHAR(255) NOT NULL,
@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Создание таблицы чатов (conversations)
-CREATE TABLE IF NOT EXISTS conversations (
+CREATE TABLE conversations (
     id SERIAL PRIMARY KEY,
     type VARCHAR(20) NOT NULL,         -- например: 'private' или 'group'
     name VARCHAR(100),                 -- имя чата для групповых чатов
@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS conversations (
 );
 
 -- Создание таблицы участников чата (conversation_members)
-CREATE TABLE IF NOT EXISTS conversation_members (
+CREATE TABLE conversation_members (
     conversation_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     role VARCHAR(20) NOT NULL DEFAULT 'member',  -- 'admin', 'member' и т.д.
