@@ -1,0 +1,46 @@
+package main
+
+import (
+	"database/sql"
+	"fmt"
+	"log"
+	"net/http"
+
+	"github.com/Victor3563/CorpMessenger/config"
+	"github.com/Victor3563/CorpMessenger/pkg/repo"
+	"github.com/Victor3563/CorpMessenger/server"
+	_ "github.com/lib/pq"
+)
+
+func start_rep() {
+	config, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
+
+	//!!!! Вроде я правильно все понял, но как то пугает. Честно не доконца понял
+	//как с viper работать. Чисто по гайдам работал, но будто много чего упустил
+	connStr := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
+		config.Database.User, config.Database.Password, config.Database.Host, config.Database.Port,
+		config.Database.DBName, config.Database.SSLMode)
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
+	if err := db.Ping(); err != nil {
+		log.Fatalf("Failed to ping database: %v", err)
+	}
+
+	// Инициализация репозитория и передача его в глобальную переменную обработчиков
+	repoInstance := repo.NewRepository(db)
+	server.InitRoutes(repoInstance)
+
+	addr := fmt.Sprintf(":%d", config.Server.Port)
+	fmt.Printf("Server started at %s\n", addr)
+	log.Fatal(http.ListenAndServe(addr, nil))
+}
+
+func main() {
+	start_rep()
+}
