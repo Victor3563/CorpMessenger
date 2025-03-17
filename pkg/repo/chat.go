@@ -48,13 +48,13 @@ func (r *Repository) DeleteConversation(convID int) error {
 
 // Установка зависимостей между чатами и юзерами
 func (r *Repository) AddMemberToConversation(convID, userID int, role string) error {
-	query := `INSERT INTO conversetion_members (conversation_id, user_id, role) VALUE ($1, $2, $3)`
+	query := `INSERT INTO conversation_members (conversation_id, user_id, role) VALUES ($1, $2, $3)`
 	_, err := r.DB.Exec(query, convID, userID, role)
 	return err
 }
 
 func (r *Repository) RemoveMemberFromConversation(convID, userID int) error {
-	query := `DELETE FROM conversetion_members WHERE conversation_id = $1 AND user_id = $2`
+	query := `DELETE FROM conversation_members WHERE conversation_id = $1 AND user_id = $2`
 	res, err := r.DB.Exec(query, convID, userID)
 	if err != nil {
 		return err

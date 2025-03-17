@@ -1,4 +1,3 @@
-// Черновик, нужен рефакторинг
 package server
 
 import (
