@@ -1,15 +1,5 @@
-//Это черновое представление файла, тут есть упрощения в пользу тестирования и дублирование структур,
-// реализованных в других файлах, которое стоит пересмотреть при рефакторинге (вроде кстати плюс минус можжно так оставить, конечно в идеале надо кое-что добить,
-//  но будто это того не стоит)
 //Пора перекинуть все принты в логирование буду заниматься постепенно, по мере рефакторинга
-
-// Я ебал этот вебсокет, 4 дня безостановчной дрочки, потому что дохуя чего оказывается надо использовать, а инфа иногда не столь тривиально гуглится
-// некоторые моменты все еще не верно работают.
-// Базовый функционал тестировал перед отправкой(создание юзеров, чата, обмен сообщениями, удаление сообщений)
-
 //Кэширование будет проходить на стороне юзера, так что сервер просто возращает ему по запросу N сообщений.
-//Удаление пока работает через http, наверное так и останется, исходя из того что удалять юзеры будут реже чем писать. Надо обновлять сообщения, выводимые эзерам после удаления,
-// пока это реализовано просто как флаг, но мы еще подумаем
 
 package server
 
@@ -18,33 +8,41 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
+	"time"
 
+	"github.com/Victor3563/CorpMessenger/pkg/repo"
 	"github.com/gorilla/websocket"
 )
 
-// WSMessage структура сообщения
-type WSMessage struct {
-	ChatID   int    `json:"chat_id"`
-	SenderID int    `json:"sender_id"`
-	Content  string `json:"content"`
-}
-
 // Client подключаем к WS
 type Client struct {
-	Hub    *Hub
-	Conn   *websocket.Conn
-	Send   chan []byte
-	ChatID int
-	UserID int
+	Hub       *Hub
+	Conn      *websocket.Conn
+	Send      chan []byte
+	ChatID    int
+	UserID    int
+	closeOnce sync.Once //Хотим закрываться только раз
+}
+
+// Закрывашка клиентов
+func (c *Client) safeCloseSend() {
+	c.closeOnce.Do(func() {
+		close(c.Send)
+	})
 }
 
 // Hub управляет всеми подключениями, распределяет входящие сообщения по чатам.
 type Hub struct {
 	//Я отказался от хранения клиентов в бд в пользу подобной структуры, так как обращение к бд ресурсно затратно
-	Clients   map[int]map[*Client]bool //Пофакту set клиентов по чат id
-	Broadcast chan WSMessage           // Канал для сообщений
-	Register  chan *Client             // Каналы для работы с клиентами
-	Remove    chan *Client             // Каналы для работы с клиентами
+	Clients    map[int]map[*Client]bool //Пофакту set клиентов по чат id
+	Broadcast  chan repo.WSMessage      // Канал для сообщений
+	Register   chan *Client             // Каналы для работы с клиентами
+	Remove     chan *Client             // Каналы для работы с клиентами
+	BatchQueue chan repo.WSMessage
+
+	Mutex sync.RWMutex //Используем RWMutex так как писать будем
+	//  не так часто как читать, и нам хочется для скорости разделять эти процессы
 }
 
 var wsUpgrader = websocket.Upgrader{
@@ -60,41 +58,73 @@ var wsUpgrader = websocket.Upgrader{
 
 func NewHub() *Hub {
 	return &Hub{
-		Clients:   make(map[int]map[*Client]bool),
-		Broadcast: make(chan WSMessage),
-		Register:  make(chan *Client),
-		Remove:    make(chan *Client),
+		Clients:    make(map[int]map[*Client]bool),
+		Broadcast:  make(chan repo.WSMessage),
+		Register:   make(chan *Client),
+		Remove:     make(chan *Client),
+		BatchQueue: make(chan repo.WSMessage, 1000), // Буфер для сообщений батча
+	}
+}
+
+// Может стоит пакетную вставку вообще вынести в другой файл. Пока оставлю тут, но я готов...
+// Cобирает сообщения из BatchQueue и выполняет пакетную вставку в базу.
+func (h *Hub) InsertProcessor() {
+	// Таймер для таймаута (например, каждые 5 секунд (стоит ли вынести это в отдельный класс Settings?))
+	timer := time.NewTicker(5 * time.Second)
+	defer timer.Stop()
+	batch := make([]repo.WSMessage, 0, 100)
+	for {
+		select {
+		case msg := <-h.BatchQueue:
+			batch = append(batch, msg)
+			// Если накопилось 100 сообщений, обрабатываем батч
+			if len(batch) >= 100 {
+				if err := Repo.BatchInsertMessages(batch); err != nil {
+					fmt.Printf("Batch insert error: %v", err)
+					return
+				}
+				batch = batch[:0]
+			}
+		case <-timer.C:
+			// Если прошло время, а в пакете есть сообщения, обрабатываем их.
+			if len(batch) > 0 {
+				if err := Repo.BatchInsertMessages(batch); err != nil {
+					fmt.Printf("Batch insert error: %v", err)
+					return
+				}
+				batch = batch[:0]
+			}
+		}
 	}
 }
 
 func (h *Hub) Run() {
+	go h.InsertProcessor()
 	for {
 		select {
 		case client := <-h.Register:
+			h.Mutex.Lock()
 			if _, status_ok := h.Clients[client.ChatID]; !status_ok {
 				h.Clients[client.ChatID] = make(map[*Client]bool)
 			}
 			h.Clients[client.ChatID][client] = true
+			h.Mutex.Unlock()
 			fmt.Printf("Client connect: chat_id = %d, user_id = %d", client.ChatID, client.UserID)
 		case client := <-h.Remove:
+			h.Mutex.Lock()
 			if clients, status_ok := h.Clients[client.ChatID]; status_ok {
 				if _, ok := clients[client]; ok {
 					delete(clients, client)
-					close(client.Send)
+					client.safeCloseSend()
 					fmt.Printf("Отключен клиент: chat_id=%d, user_id=%d", client.ChatID, client.UserID)
 					if len(clients) == 0 {
 						delete(h.Clients, client.ChatID)
 					}
 				}
 			}
+			h.Mutex.Unlock()
 		case message := <-h.Broadcast:
-			//Сохраняем в бд
-			savedMessage, err := Repo.AddMessage(message.ChatID, message.SenderID, message.Content)
-			if err != nil {
-				fmt.Printf("Ошибка сохранения сообщения: %v", err)
-				continue
-			}
-			payload, err := json.Marshal(savedMessage)
+			payload, err := json.Marshal(message)
 			if err != nil {
 				fmt.Printf("Ошибка в преобразовании сообщения в джсон: %v", err)
 				continue
@@ -102,6 +132,7 @@ func (h *Hub) Run() {
 			// Рассылаем сообщение всем подключенным клиентам в чате, кроме отправителя.
 			// Вот тут (или не тут)) )нужно отправлять уведы не подключеным клиентам выставляя в новой табличке соответсвующие поля, написать отдельную функцию
 			// которая еще пробежит и скажет всем что нью увед есть
+			h.Mutex.RLock()
 			if clients, ok := h.Clients[message.ChatID]; ok {
 				for client := range clients {
 					if client.UserID == message.SenderID {
@@ -115,6 +146,10 @@ func (h *Hub) Run() {
 					}
 				}
 			}
+			h.Mutex.RUnlock()
+
+			//Сохраняем в бд только после отправки всем(Отправляем в поток для сохранения)
+			h.BatchQueue <- message
 		}
 	}
 }
@@ -127,7 +162,7 @@ func (c *Client) ReadclMes() {
 		c.Conn.Close()
 	}()
 	for {
-		var msg WSMessage
+		var msg repo.WSMessage
 		if err := c.Conn.ReadJSON(&msg); err != nil {
 			fmt.Printf("Ошибка чтения JSON: %v", err)
 			break

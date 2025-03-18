@@ -3,8 +3,17 @@ package repo
 
 import (
 	"errors"
+	"fmt"
 	"time"
 )
+
+// WSMessage структура сообщения
+
+type WSMessage struct {
+	ChatID   int    `json:"chat_id"`
+	SenderID int    `json:"sender_id"`
+	Content  string `json:"content"`
+}
 
 type Message struct {
 	ID        int       `json:"id"`
@@ -29,23 +38,40 @@ func (r *Repository) AddMessage(chatID, senderID int, content string) (Message, 
 	return msg, nil
 }
 
+// Сохраняет много сообщений в базе данных.
+func (r *Repository) BatchInsertMessages(messages []WSMessage) error {
+	if len(messages) == 0 {
+		return nil
+	}
+	query := "INSERT INTO messages (chat_id, sender_id, content, created_at, deleted) VALUES "
+	args := []interface{}{}
+	for i, msg := range messages {
+		if i > 0 {
+			query += ", "
+		}
+		query += fmt.Sprintf("($%d, $%d, $%d, NOW(), false)", i*3+1, i*3+2, i*3+3)
+		args = append(args, msg.ChatID, msg.SenderID, msg.Content)
+	}
+	_, err := r.DB.Exec(query, args...)
+	return err
+}
+
 // возвращает последние N сообщений для указанного чата, упорядоченные по возрастанию времени.
 func (r *Repository) GetMessages(chatID, limit int) ([]Message, error) {
 	// Заебался пистаь запросы
 	query := `SELECT id, chat_id, sender_id, content, created_at, deleted
 		FROM messages
 		WHERE chat_id = $1 AND deleted = false
-		ORDER BY created_at DESC
+		ORDER BY created_at ASC
 		LIMIT $2;`
 	rows, err := r.DB.Query(query, chatID, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close() //Гарантируем закрытие
-
-	messages := []Message{}
+	messages := make([]Message, 0, limit)
 	for rows.Next() {
-		var msg Message
+		msg := Message{}
 		err = rows.Scan(&msg.ID, &msg.ChatID, &msg.SenderID, &msg.Content, &msg.CreatedAt, &msg.Deleted)
 		if err != nil {
 			return nil, err
@@ -62,19 +88,13 @@ func (r *Repository) GetMessages(chatID, limit int) ([]Message, error) {
 // Выполняет soft delete сообщения (устанавливает deleted = true).
 // Удаление может выполнить только отправитель сообщения!!!
 func (r *Repository) DeleteMessage(messageID, senderID int) error {
-	var dbSenderID int
-	// Я ебал эти запросы, забыл FROM, дебажил 30 минут
-	querySelect := `SELECT sender_id FROM messages WHERE id = $1`
-	err := r.DB.QueryRow(querySelect, messageID).Scan(&dbSenderID)
-	if err != nil {
-		return err
-	}
-	if dbSenderID != senderID {
-		return errors.New("нельзя удалить сообщение: неверный отправитель")
-	}
-
-	query := `UPDATE messages SET deleted = true WHERE id = $1`
-	res, err := r.DB.Exec(query, messageID)
+	//Уместил все в один запрос
+	query := `UPDATE messages 
+			SET deleted = true
+			WHERE id = $1
+				AND deleted = false 
+            	AND sender_id = $2`
+	res, err := r.DB.Exec(query, messageID, senderID)
 	if err != nil {
 		return err
 	}
@@ -83,7 +103,7 @@ func (r *Repository) DeleteMessage(messageID, senderID int) error {
 		return err
 	}
 	if affected == 0 {
-		return errors.New("сообщение не найдено или уже удалено")
+		return errors.New("Message not found or haven't ability to delete it")
 	}
 	return nil
 }
