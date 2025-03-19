@@ -20,4 +20,10 @@ func InitRoutes(r *repo.Repository) {
 	http.HandleFunc("/deleteChat", DeleteChatHandler)
 	http.HandleFunc("/addMember", AddMemberHandler)
 	http.HandleFunc("/removeMember", RemoveMemberHandler)
+
+	// Роуты для сообщений
+	http.HandleFunc("/deleteMessage", DeleteMessageHandler)
+	hub := NewHub()
+	go hub.Run()
+	http.HandleFunc("/ws", WSHandler(hub))
 }

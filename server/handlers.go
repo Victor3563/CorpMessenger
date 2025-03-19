@@ -15,7 +15,7 @@ var Repo *repo.Repository
 // regist new user by User.Create and write it to server
 func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Server regist comand get")
-	req, err := root.ParserandValidByName(r)
+	req, err := root.ParserandValidByNameandMethod(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -33,7 +33,7 @@ func RegisterHandler(w http.ResponseWriter, r *http.Request) {
 // Auth user by User.Auth in server
 func AuthHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Server Auth comand get")
-	req, err := root.ParserandValidByName(r)
+	req, err := root.ParserandValidByNameandMethod(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -80,7 +80,7 @@ func DeleteUserHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req, err := root.ParserandValidByName(r)
+	req, err := root.ParserandValidByID(r)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

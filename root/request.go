@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/Victor3563/CorpMessenger/pkg/repo"
 )
@@ -12,10 +11,6 @@ import (
 // парсим запрос и проверяем его адекватность (просто упростили код heandlers) челики
 func ParserandValidByName(r *http.Request) (repo.User, error) {
 	var req repo.User
-
-	if r.Method != http.MethodPost {
-		return req, errors.New("invalid request method by user")
-	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, errors.New("invalid JSON in user")
@@ -26,6 +21,16 @@ func ParserandValidByName(r *http.Request) (repo.User, error) {
 	}
 
 	return req, nil
+}
+
+func ParserandValidByNameandMethod(r *http.Request) (repo.User, error) {
+	var req repo.User
+
+	if r.Method != http.MethodPost {
+		return req, errors.New("invalid request method by user")
+	}
+
+	return ParserandValidByName(r)
 }
 
 func ParserandValidByID(r *http.Request) (repo.User, error) {
@@ -62,13 +67,11 @@ func ParserConversationDelete(r *http.Request) (repo.Conversation, error) {
 	if r.Method != http.MethodDelete {
 		return req, errors.New("invalid request method conversation")
 	}
-	idStr := r.URL.Query().Get("id")
-	if idStr != "" {
-		return req, errors.New("missing required id")
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, errors.New("неверный JSON")
 	}
-	var err error
-	req.ID, err = strconv.Atoi(idStr)
-	if err != nil {
+
+	if req.ID == 0 {
 		return req, errors.New("invalid conversation id")
 	}
 	return req, nil

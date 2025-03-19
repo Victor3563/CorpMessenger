@@ -24,3 +24,12 @@ CREATE TABLE conversation_members (
     joined_at TIMESTAMPTZ DEFAULT NOW(),
     PRIMARY KEY (conversation_id, user_id)
 );
+
+CREATE TABLE messages (
+    id SERIAL PRIMARY KEY,
+    chat_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    deleted BOOLEAN DEFAULT false
+);
