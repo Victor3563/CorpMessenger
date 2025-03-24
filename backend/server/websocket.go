@@ -135,9 +135,6 @@ func (h *Hub) Run() {
 			h.Mutex.RLock()
 			if clients, ok := h.Clients[message.ChatID]; ok {
 				for client := range clients {
-					if client.UserID == message.SenderID {
-						continue
-					}
 					select {
 					case client.Send <- payload:
 					default:

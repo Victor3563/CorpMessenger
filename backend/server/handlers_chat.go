@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/Victor3563/CorpMessenger/root"
 )
@@ -66,5 +67,34 @@ func RemoveMemberHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Member removed successfully"))
+
+}
+
+// GetUserChatsHandler возвращает список чатов для пользователя
+func GetUserChatsHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Get chats comand get")
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+	userIDStr := r.URL.Query().Get("user_id")
+	if userIDStr == "" {
+		http.Error(w, "user_id is required", http.StatusBadRequest)
+		return
+	}
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		http.Error(w, "Invalid user_id", http.StatusBadRequest)
+		return
+	}
+	chats, err := Repo.GetUserChats(userID)
+	if err != nil {
+		http.Error(w, "Error fetching chats: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(chats); err != nil {
+		http.Error(w, "Error formating answer", http.StatusInternalServerError)
+	}
 
 }

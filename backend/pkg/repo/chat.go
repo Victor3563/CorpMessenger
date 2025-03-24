@@ -19,6 +19,11 @@ type ConversationMember struct {
 	JoinedAt       string `json:"joined_at"`
 }
 
+type Returns_chat_info struct {
+	ConversationName string `json:"conversation_name"`
+	Role             string `json:"role"`
+}
+
 // Работа с чатами
 func (r *Repository) CreateConversation(convType, name string) (Conversation, error) {
 	var conv Conversation
@@ -44,6 +49,34 @@ func (r *Repository) DeleteConversation(convID int) error {
 		return errors.New("user not found")
 	}
 	return nil
+}
+
+// возвращает чаты пользователя
+func (r *Repository) GetUserChats(userID int) ([]Conversation, error) {
+	query := `SELECT c.id, c."type", c.name, c.created_at
+		FROM conversations c
+		JOIN conversation_members cm ON c.id = cm.conversation_id
+		WHERE cm.user_id = $1
+		ORDER BY c.created_at DESC`
+	rows, err := r.DB.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close() //Гарантируем закрытие
+	var chats []Conversation
+	for rows.Next() {
+		var c Conversation
+		if err := rows.Scan(&c.ID, &c.Type, &c.Name, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		chats = append(chats, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return chats, nil
+
 }
 
 // Установка зависимостей между чатами и юзерами

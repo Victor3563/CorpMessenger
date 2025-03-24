@@ -12,6 +12,26 @@ import (
 	_ "github.com/lib/pq"
 )
 
+// corsMiddleware оборачивает обработчик и добавляет необходимые заголовки CORS.
+func corsMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Разрешаем запросы с любого источника. В продакшене можно указать конкретный URL, например, "http://localhost:5173"
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// Разрешенные HTTP-методы
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		// Разрешенные заголовки
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// Если это предзапрос с методом OPTIONS, возвращаем статус OK
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		// Передаем управление следующему обработчику
+		next.ServeHTTP(w, r)
+	})
+}
+
 func start_rep() {
 	config, err := config.LoadConfig()
 	if err != nil {
@@ -38,7 +58,7 @@ func start_rep() {
 
 	addr := fmt.Sprintf(":%d", config.Server.Port)
 	fmt.Printf("Server started at %s\n", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	log.Fatal(http.ListenAndServe(addr, corsMiddleware(http.DefaultServeMux)))
 }
 
 func main() {
