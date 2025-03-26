@@ -1,4 +1,3 @@
-<!-- src/components/MessageInput.vue -->
 <template>
   <div class="input-container">
     <input v-model="message" @keyup.enter="handleSend" placeholder="Type your message..." />
@@ -10,7 +9,6 @@
 import { ref, defineEmits } from 'vue'
 const emit = defineEmits(['sendMessage'])
 const message = ref('')
-
 const handleSend = () => {
   if (message.value.trim() !== '') {
     emit('sendMessage', message.value.trim())
@@ -26,8 +24,10 @@ const handleSend = () => {
 input {
   flex: 1;
   padding: 8px;
+  font-size: 1rem;
 }
 button {
   padding: 8px 16px;
+  font-size: 1rem;
 }
 </style>

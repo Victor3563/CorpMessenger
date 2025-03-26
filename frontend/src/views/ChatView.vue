@@ -1,88 +1,87 @@
 <template>
-  <div class="chat-container">
-    <!-- Левый сайдбар: список чатов и управление -->
-    <div class="sidebar">
-      <h2>Your Chats</h2>
-      <ul>
-        <li v-for="chat in chats" :key="chat.id" @click="selectChat(chat)" :class="{ active: selectedChat && selectedChat.id === chat.id }">
-          {{ chat.name }}
-          <button @click.stop="deleteChat(chat.id)">Delete</button>
-        </li>
-      </ul>
-      <div class="create-chat">
-        <h3>Create Chat</h3>
-        <form @submit.prevent="createChat">
-          <div>
-            <label for="chatType">Type:</label>
-            <select v-model="newChatType" id="chatType">
-              <option value="private">Private</option>
-              <option value="group">Group</option>
-            </select>
-          </div>
-          <div>
-            <label for="chatName">Name:</label>
-            <input v-model="newChatName" type="text" id="chatName" required />
-          </div>
-          <button type="submit">Create</button>
-        </form>
+  <div class="main-container">
+    <!-- Верхняя синяя панель -->
+    <div class="top-bar">
+      <div class="user-icon" @click="goToProfile">
+        <span>{{ userInitial }}</span>
       </div>
-      <div class="member-management" v-if="selectedChat">
-        <h3>Manage Chat Members</h3>
-        <form @submit.prevent="addMember">
-          <div>
-            <label for="addUserId">Add Member (User ID):</label>
-            <input v-model="memberToAdd" type="number" id="addUserId" required />
-          </div>
-          <div>
-            <label for="memberRole">Role:</label>
-            <input v-model="memberRole" type="text" id="memberRole" required placeholder="e.g., member" />
-          </div>
-          <button type="submit">Add Member</button>
-        </form>
-        <form @submit.prevent="removeMember">
-          <div>
-            <label for="removeUserId">Remove Member (User ID):</label>
-            <input v-model="memberToRemove" type="number" id="removeUserId" required />
-          </div>
-          <button type="submit">Remove Member</button>
-        </form>
+      <div class="search-container">
+        <input v-model="searchQuery" @input="handleSearchInput" @keyup.enter="executeSearch" placeholder="Search users..." />
+        <SearchResults v-if="searchResults.length > 0" :results="searchResults" @select="selectSearchedUser" />
+      </div>
+      <div class="signout-icon" @click="toggleSignOutModal">
+        <span>Sign Out</span>
       </div>
     </div>
 
-    <!-- Основная область: окно чата -->
-    <div class="chat-window" v-if="selectedChat">
-      <h2>{{ selectedChat.name }}</h2>
-      <div class="message-list">
-        <MessageList :messages="messages" />
-      </div>
-      <div class="message-input">
-        <MessageInput @sendMessage="sendMessage" />
+    <!-- Модальное окно выхода -->
+    <div v-if="showSignOutModal" class="modal-overlay" @click.self="toggleSignOutModal">
+      <div class="modal">
+        <p>Are you sure you want to sign out?</p>
+        <button @click="signOut">Yes</button>
+        <button @click="toggleSignOutModal">No</button>
       </div>
     </div>
-    <div v-else class="no-chat">
-      <p>Select a chat to view messages</p>
+
+    <div class="content">
+      <!-- Левая колонка: список чатов -->
+      <div class="sidebar">
+        <h2>Your Chats</h2>
+        <ChatList :chats="chats" @selectChat="selectChat" @openChatInfo="goToChatInfo" />
+        <div class="create-chat">
+          <h3>Create Chat</h3>
+          <form @submit.prevent="createChat">
+            <div>
+              <label for="chatType">Type:</label>
+              <select v-model="newChatType" id="chatType">
+                <option value="private">Private</option>
+                <option value="group">Group</option>
+              </select>
+            </div>
+            <div>
+              <label for="chatName">Name:</label>
+              <input v-model="newChatName" type="text" id="chatName" required />
+            </div>
+            <button type="submit">Create</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- Правая колонка: окно чата -->
+      <div class="chat-window" v-if="selectedChat">
+        <div class="chat-header">
+          <h2 @click="goToChatInfo(selectedChat.id)">{{ selectedChat.name }}</h2>
+        </div>
+        <div class="message-list">
+          <MessageList :messages="messages" />
+        </div>
+        <div class="message-input">
+          <MessageInput @sendMessage="sendMessage" />
+        </div>
+      </div>
+      <div v-else class="no-chat">
+        <p>Select a chat to view messages</p>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useUserStore } from '../store'
 import { useRouter } from 'vue-router'
+import ChatList from '../components/ChatList.vue'
 import MessageList from '../components/MessageList.vue'
 import MessageInput from '../components/MessageInput.vue'
+import SearchResults from '../components/SearchResults.vue'
 import {
   getUserChats,
   createChatAPI,
-  deleteChatAPI,
-  addMemberAPI,
-  removeMemberAPI,
-  // добавим новую функцию для получения сообщений
-  getMessagesAPI
+  getMessagesAPI,
+  findUserAPI
 } from '../api/api'
 
 const WS_URL = 'ws://localhost:8080/ws'
-
 const userStore = useUserStore()
 const router = useRouter()
 
@@ -92,11 +91,11 @@ const messages = ref([])
 
 const newChatType = ref('private')
 const newChatName = ref('')
-const memberToAdd = ref('')
-const memberRole = ref('member')
-const memberToRemove = ref('')
+const searchQuery = ref('')
+const searchResults = ref([])
 
-let ws = null
+const ws = ref(null)
+const showSignOutModal = ref(false)
 
 const fetchChats = async () => {
   try {
@@ -110,11 +109,10 @@ const fetchChats = async () => {
   }
 }
 
-// Загружаем последние 20 сообщений выбранного чата
 const fetchMessages = async (chatId) => {
   try {
     const msgs = await getMessagesAPI(chatId, 20)
-    messages.value = msgs.reverse() // разворачиваем, чтобы старые были вверху
+    messages.value = msgs.reverse()
   } catch (error) {
     alert(error.message)
   }
@@ -131,51 +129,19 @@ const createChat = async () => {
   }
 }
 
-const deleteChat = async (chatId) => {
-  try {
-    await deleteChatAPI(chatId)
-    chats.value = chats.value.filter(chat => chat.id !== chatId)
-    if (selectedChat.value && selectedChat.value.id === chatId) {
-      selectedChat.value = chats.value.length > 0 ? chats.value[0] : null
-      messages.value = []
-      if (ws) ws.close()
-      if (selectedChat.value) {
-        fetchMessages(selectedChat.value.id)
-        connectWebSocket()
-      }
-    }
-  } catch (error) {
-    alert(error.message)
-  }
-}
-
-const addMember = async () => {
-  if (!selectedChat.value) return
-  try {
-    await addMemberAPI(selectedChat.value.id, parseInt(memberToAdd.value), memberRole.value)
-    alert('Member added successfully')
-    memberToAdd.value = ''
-  } catch (error) {
-    alert(error.message)
-  }
-}
-
-const removeMember = async () => {
-  if (!selectedChat.value) return
-  try {
-    await removeMemberAPI(selectedChat.value.id, parseInt(memberToRemove.value))
-    alert('Member removed successfully')
-    memberToRemove.value = ''
-  } catch (error) {
-    alert(error.message)
-  }
+const selectChat = async (chat) => {
+  selectedChat.value = chat
+  messages.value = []
+  if (ws.value) ws.value.close()
+  await fetchMessages(chat.id)
+  connectWebSocket()
 }
 
 const connectWebSocket = () => {
   if (!selectedChat.value) return
-  ws = new WebSocket(`${WS_URL}?chat_id=${selectedChat.value.id}&user_id=${userStore.user.id}`)
-  ws.onopen = () => console.log('WebSocket connected')
-  ws.onmessage = (event) => {
+  ws.value = new WebSocket(`${WS_URL}?chat_id=${selectedChat.value.id}&user_id=${userStore.user.id}`)
+  ws.value.onopen = () => console.log('WebSocket connected')
+  ws.value.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data)
       messages.value.push(msg)
@@ -183,27 +149,60 @@ const connectWebSocket = () => {
       console.error('Error parsing WS message:', e)
     }
   }
-  ws.onerror = (error) => console.error('WebSocket error:', error)
-  ws.onclose = (event) => {
-    console.log('WebSocket closed:', event)
-  }
+  ws.value.onerror = (error) => console.error('WebSocket error:', error)
+  ws.value.onclose = (event) => console.log('WebSocket closed:', event)
 }
 
 const sendMessage = (text) => {
-  if (ws && ws.readyState === WebSocket.OPEN) {
+  if (ws.value && ws.value.readyState === WebSocket.OPEN) {
     const messageData = { chat_id: selectedChat.value.id, content: text, sender_id: userStore.user.id }
-    ws.send(JSON.stringify(messageData))
+    ws.value.send(JSON.stringify(messageData))
   }
 }
 
-const selectChat = async (chat) => {
-  selectedChat.value = chat
-  messages.value = []
-  if (ws) ws.close()
-  // Сначала загружаем последние 20 сообщений
-  await fetchMessages(chat.id)
-  connectWebSocket()
+const handleSearchInput = () => {
+  if (searchQuery.value.trim().length === 0) {
+    searchResults.value = []
+    return
+  }
+  executeSearch()
 }
+
+const executeSearch = async () => {
+  try {
+    const results = await findUserAPI(searchQuery.value)
+    searchResults.value = results
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+const selectSearchedUser = (user) => {
+  // При выборе из верхней панели переходим на профиль пользователя
+  router.push({ name: 'Profile', query: { user_id: user.id } })
+  searchResults.value = []
+}
+
+const toggleSignOutModal = () => {
+  showSignOutModal.value = !showSignOutModal.value
+}
+
+const signOut = () => {
+  userStore.clearUser()
+  router.push('/')
+}
+
+const goToProfile = () => {
+  router.push({ name: 'Profile', query: { user_id: userStore.user.id } })
+}
+
+const goToChatInfo = (chatId) => {
+  router.push({ name: 'ChatInfo', params: { id: chatId } })
+}
+
+const userInitial = computed(() => {
+  return userStore.user && userStore.user.username ? userStore.user.username.charAt(0).toUpperCase() : '?'
+})
 
 onMounted(() => {
   if (!userStore.user) {
@@ -214,14 +213,73 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  if (ws) ws.close()
+  if (ws.value) ws.value.close()
 })
 </script>
 
 <style scoped>
-.chat-container {
+.main-container {
   display: flex;
+  flex-direction: column;
   height: 100vh;
+}
+
+/* Верхняя панель */
+.top-bar {
+  background-color: #007bff;
+  color: white;
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  height: 60px;
+  position: relative;
+}
+.top-bar .user-icon,
+.top-bar .signout-icon {
+  cursor: pointer;
+  font-size: 1.5rem;
+  width: 60px;
+  text-align: center;
+}
+.top-bar .search-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  position: relative;
+}
+.top-bar input {
+  width: 60%;
+  padding: 8px 12px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 4px;
+}
+
+/* Модальное окно выхода */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+.modal {
+  background: white;
+  padding: 20px;
+  border-radius: 6px;
+  text-align: center;
+}
+
+/* Основной контент */
+.content {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
 }
 
 /* Sidebar */
@@ -229,34 +287,12 @@ onBeforeUnmount(() => {
   width: 300px;
   padding: 10px;
   border-right: 1px solid #ccc;
-  overflow-y: auto;
   background-color: #f9f9f9;
+  overflow-y: auto;
 }
 .sidebar h2 {
   margin-bottom: 10px;
   font-size: 1.8rem;
-}
-.sidebar ul {
-  list-style: none;
-  padding: 0;
-}
-.sidebar li {
-  padding: 5px;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-.sidebar li.active {
-  background-color: #e0e0e0;
-}
-.sidebar button {
-  background-color: #dc3545;
-  border: none;
-  color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
-  cursor: pointer;
 }
 
 /* Chat window */
@@ -266,8 +302,8 @@ onBeforeUnmount(() => {
   flex-direction: column;
   padding: 10px;
 }
-.chat-window h2 {
-  margin: 0 0 10px;
+.chat-header h2 {
+  cursor: pointer;
 }
 .message-list {
   flex: 1;
@@ -279,12 +315,5 @@ onBeforeUnmount(() => {
 .message-input {
   border-top: 1px solid #ccc;
   padding: 10px;
-}
-
-/* Create chat & member management */
-.create-chat, .member-management {
-  margin-top: 20px;
-  border-top: 1px solid #ccc;
-  padding-top: 10px;
 }
 </style>

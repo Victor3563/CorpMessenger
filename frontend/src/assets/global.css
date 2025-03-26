@@ -1,0 +1,13 @@
+/* Глобальные стили: белый фон на весь экран, базовые настройки */
+html, body, #app {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    background-color: white;
+  }
+  
+  body {
+    font-family: Arial, sans-serif;
+    color: #333;
+  }
+  

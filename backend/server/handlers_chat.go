@@ -20,6 +20,11 @@ func CreateChatHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
+	creatorID := req.CreatorID
+	if err := Repo.AddMemberToConversation(conv.ID, creatorID, "admin"); err != nil {
+		http.Error(w, "Chat created but error adding creator: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(conv)
 }
@@ -90,6 +95,35 @@ func GetUserChatsHandler(w http.ResponseWriter, r *http.Request) {
 	chats, err := Repo.GetUserChats(userID)
 	if err != nil {
 		http.Error(w, "Error fetching chats: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(chats); err != nil {
+		http.Error(w, "Error formating answer", http.StatusInternalServerError)
+	}
+
+}
+
+// GetChatUsersHandler возвращает список юзеров для чата
+func GetChatUsersHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Get chats comand get")
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+	chatIDStr := r.URL.Query().Get("chat_id")
+	if chatIDStr == "" {
+		http.Error(w, "chat_id is required", http.StatusBadRequest)
+		return
+	}
+	chatID, err := strconv.Atoi(chatIDStr)
+	if err != nil {
+		http.Error(w, "Invalid chat_id", http.StatusBadRequest)
+		return
+	}
+	chats, err := Repo.GetChatUsers(chatID)
+	if err != nil {
+		http.Error(w, "Error fetching users: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

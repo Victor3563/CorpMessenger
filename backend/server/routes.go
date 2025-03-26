@@ -14,6 +14,8 @@ func InitRoutes(r *repo.Repository) {
 	http.HandleFunc("/auth", AuthHandler)
 	http.HandleFunc("/updateUser", UpdateUserHandler)
 	http.HandleFunc("/deleteUser", DeleteUserHandler)
+	http.HandleFunc("/findUser", FindUserHandler)
+	http.HandleFunc("/findUserbyID", FindUserbyIDHandler)
 
 	// Роуты для чатов
 	http.HandleFunc("/createChat", CreateChatHandler)
@@ -21,6 +23,7 @@ func InitRoutes(r *repo.Repository) {
 	http.HandleFunc("/addMember", AddMemberHandler)
 	http.HandleFunc("/removeMember", RemoveMemberHandler)
 	http.HandleFunc("/getChats", GetUserChatsHandler)
+	http.HandleFunc("/getUsersFromChat", GetChatUsersHandler)
 
 	// Роуты для сообщений
 	http.HandleFunc("/deleteMessage", DeleteMessageHandler)

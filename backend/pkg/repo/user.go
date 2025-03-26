@@ -99,3 +99,47 @@ func (r *Repository) DeleteUser(id int) error {
 	}
 	return nil
 }
+
+// создали отдельный класс чтобы точно не возращать лишнюю инфу, например пароль
+type UserInfo struct {
+	ID    int    `json:"id"`
+	Name  string `json:"username"`
+	Email string `json:"email"`
+	Role  string `json:"role"`
+}
+
+// FindUser find a user from the Data
+func (r *Repository) FindUser(name string) ([]User, error) {
+	// SQL-запрос для выбора пользователей, чье имя начинается с name
+	query := `SELECT id, username, email FROM users WHERE username LIKE $1 || '%'`
+	rows, err := r.DB.Query(query, name)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var user User
+		if err := rows.Scan(&user.ID, &user.Name, &user.Email); err != nil {
+			return nil, err
+		}
+		users = append(users, user)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
+// FindUser find a user from the Data
+func (r *Repository) FindUserbyID(user_id int) (User, error) {
+	var user User
+	// SQL-запрос для выбора пользователей, чье имя начинается с name
+	query := `SELECT id, username, email, password FROM users WHERE id = $1`
+	err := r.DB.QueryRow(query, user_id).Scan(&user.ID, &user.Name, &user.Email, &user.Password)
+	if err != nil {
+		return user, err
+	}
+	return user, nil
+}

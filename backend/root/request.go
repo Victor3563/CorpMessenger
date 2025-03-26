@@ -50,9 +50,6 @@ func ParserandValidByID(r *http.Request) (repo.User, error) {
 // Чатики
 func ParserConversationAdd(r *http.Request) (repo.Conversation, error) {
 	var req repo.Conversation
-	if r.Method != http.MethodPost {
-		return req, errors.New("invalid request method conversation")
-	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		return req, errors.New("invalid JSON in conversation")
 	}

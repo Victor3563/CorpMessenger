@@ -10,6 +10,7 @@ type Conversation struct {
 	Type      string `json:"type"` // "private" или "group"
 	Name      string `json:"name"`
 	CreatedAt string `json:"created_at"`
+	CreatorID int    `json:"creator_id"`
 }
 
 type ConversationMember struct {
@@ -70,6 +71,34 @@ func (r *Repository) GetUserChats(userID int) ([]Conversation, error) {
 			return nil, err
 		}
 		chats = append(chats, c)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return chats, nil
+
+}
+
+// возвращает пользователей чата
+func (r *Repository) GetChatUsers(chatID int) ([]UserInfo, error) {
+	query := `SELECT u.id, u.username, u.email, cm.role
+		FROM users u
+		JOIN conversation_members cm ON u.id = cm.user_id
+		WHERE cm.conversation_id = $1
+		ORDER BY u.username DESC`
+	rows, err := r.DB.Query(query, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close() //Гарантируем закрытие
+	var chats []UserInfo
+	for rows.Next() {
+		var user UserInfo
+		if err := rows.Scan(&user.ID, &user.Name, &user.Email, &user.Role); err != nil {
+			return nil, err
+		}
+		chats = append(chats, user)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

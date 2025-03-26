@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/Victor3563/CorpMessenger/pkg/repo"
 	"github.com/Victor3563/CorpMessenger/root"
@@ -93,4 +94,58 @@ func DeleteUserHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("User deleted successfully"))
+}
+
+// FindUserHandler возвращает список чатов для пользователя
+func FindUserHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Find users comand get")
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+	name := r.URL.Query().Get("username")
+	if name == "" {
+		http.Error(w, "user_id is required", http.StatusBadRequest)
+		return
+	}
+
+	chats, err := Repo.FindUser(name)
+	if err != nil {
+		http.Error(w, "Error fetching chats: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(chats); err != nil {
+		http.Error(w, "Error formating answer", http.StatusInternalServerError)
+	}
+
+}
+
+// FindUserbyIDHandler возвращает информацию о пользователе
+func FindUserbyIDHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Find users comand get")
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+	userIDStr := r.URL.Query().Get("user_id")
+	if userIDStr == "" {
+		http.Error(w, "user_id is required", http.StatusBadRequest)
+		return
+	}
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		http.Error(w, "Invalid user_id", http.StatusBadRequest)
+		return
+	}
+	user, err := Repo.FindUserbyID(userID)
+	if err != nil {
+		http.Error(w, "Error fetching chats: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(user); err != nil {
+		http.Error(w, "Error formating answer", http.StatusInternalServerError)
+	}
+
 }
