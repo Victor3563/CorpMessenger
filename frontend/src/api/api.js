@@ -140,3 +140,38 @@ export async function updateUserAPI(id, name, email, password) {
   }
   return response.text(); // или json(), если сервер возвращает объект
 }
+
+export async function leaveChatAPI(chatId, userId) {
+  const response = await fetch(`${API_BASE}/leaveChat`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ conversation_id: chatId, user_id: userId })
+  })
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Failed to leave chat: ${errorText}`)
+  }
+  return response.text()
+}
+
+export async function getUnreadCountsAPI(userId) {
+  const response = await fetch(`${API_BASE}/unreadCounts?user_id=${userId}`, { method: 'GET' })
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Failed to fetch unread counts: ${errorText}`)
+  }
+  return response.json() // { [chatId]: count }
+}
+
+export async function resetUnreadAPI(chatId, userId) {
+  const response = await fetch(`${API_BASE}/resetUnread`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, user_id: userId })
+  })
+  if (!response.ok) {
+    const errorText = await response.text()
+    throw new Error(`Failed to reset unread counter: ${errorText}`)
+  }
+  return response.text()
+}

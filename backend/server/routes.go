@@ -24,6 +24,9 @@ func InitRoutes(r *repo.Repository) {
 	http.HandleFunc("/removeMember", RemoveMemberHandler)
 	http.HandleFunc("/getChats", GetUserChatsHandler)
 	http.HandleFunc("/getUsersFromChat", GetChatUsersHandler)
+	http.HandleFunc("/leaveChat", LeaveChatHandler)
+	http.HandleFunc("/resetUnread", UpdateLastReadHandler)
+	http.HandleFunc("/unreadCounts", GetUnreadCountsHandler)
 
 	// Роуты для сообщений
 	http.HandleFunc("/deleteMessage", DeleteMessageHandler)

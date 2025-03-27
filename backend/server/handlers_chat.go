@@ -28,7 +28,28 @@ func CreateChatHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(conv)
 }
-
+func LeaveChatHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Leave chat command received")
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ConversationID int `json:"conversation_id"`
+		UserID         int `json:"user_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+	// Пользователь удаляет себя; здесь не требуется проверка админа
+	if err := Repo.RemoveMemberFromConversation(req.ConversationID, req.UserID); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write([]byte("Left chat successfully"))
+}
 func DeleteChatHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Server Delete chat comand get")
 	req, err := root.ParserConversationDelete(r)
@@ -131,4 +152,46 @@ func GetChatUsersHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error formating answer", http.StatusInternalServerError)
 	}
 
+}
+
+func UpdateLastReadHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Get update unread comand get")
+	if r.Method != http.MethodPost {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		UserID int `json:"user_id"`
+		ChatID int `json:"chat_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+	if err := Repo.UpdateLastRead(req.UserID, req.ChatID); err != nil {
+		http.Error(w, "update error", http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func GetUnreadCountsHandler(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Get unread comand get")
+	if r.Method != http.MethodGet {
+		http.Error(w, "Invalid request method", http.StatusMethodNotAllowed)
+		return
+	}
+	userIDStr := r.URL.Query().Get("user_id")
+	userID, err := strconv.Atoi(userIDStr)
+	if err != nil {
+		http.Error(w, "invalid user_id", http.StatusBadRequest)
+		return
+	}
+	counts, err := Repo.GetUnreadCount(userID)
+	if err != nil {
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(counts)
 }

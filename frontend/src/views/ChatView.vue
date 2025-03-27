@@ -78,7 +78,10 @@ import {
   getUserChats,
   createChatAPI,
   getMessagesAPI,
-  findUserAPI
+  findUserAPI,
+  getUnreadCountsAPI,
+  resetUnreadAPI
+  
 } from '../api/api'
 
 const WS_URL = 'ws://localhost:8080/ws'
@@ -88,6 +91,7 @@ const router = useRouter()
 const chats = ref([])
 const selectedChat = ref(null)
 const messages = ref([])
+const unreadCounts = ref({})
 
 const newChatType = ref('private')
 const newChatName = ref('')
@@ -99,11 +103,14 @@ const showSignOutModal = ref(false)
 
 const fetchChats = async () => {
   try {
-    const data = await getUserChats(userStore.user.id)
-    chats.value = data
-    if (!selectedChat.value && chats.value.length > 0) {
-      selectChat(chats.value[0])
-    }
+    const allChats = await getUserChats(userStore.user.id)
+    const counts = await getUnreadCountsAPI(userStore.user.id)
+    unreadCounts.value = counts
+
+    chats.value = allChats.map(chat => ({
+      ...chat,
+      unread_count: counts[chat.id] || 0
+    }))
   } catch (error) {
     alert(error.message)
   }
@@ -133,7 +140,10 @@ const selectChat = async (chat) => {
   selectedChat.value = chat
   messages.value = []
   if (ws.value) ws.value.close()
+
   await fetchMessages(chat.id)
+  await resetUnreadCount(chat.id)
+
   connectWebSocket()
 }
 
@@ -144,7 +154,12 @@ const connectWebSocket = () => {
   ws.value.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data)
-      messages.value.push(msg)
+      if (selectedChat.value && msg.chat_id === selectedChat.value.id) {
+        messages.value.push(msg)
+      } else {
+        const targetChat = chats.value.find(c => c.id === msg.chat_id)
+        if (targetChat) targetChat.unread_count = (targetChat.unread_count || 0) + 1
+      }
     } catch (e) {
       console.error('Error parsing WS message:', e)
     }
@@ -153,12 +168,27 @@ const connectWebSocket = () => {
   ws.value.onclose = (event) => console.log('WebSocket closed:', event)
 }
 
+const resetUnreadCount = async (chatId) => {
+  try {
+    await resetUnreadAPI(chatId, userStore.user.id)
+    const chat = chats.value.find(c => c.id === chatId)
+    if (chat) chat.unread_count = 0
+  } catch (err) {
+    console.error('Failed to reset unread count:', err)
+  }
+}
+
 const sendMessage = (text) => {
   if (ws.value && ws.value.readyState === WebSocket.OPEN) {
-    const messageData = { chat_id: selectedChat.value.id, content: text, sender_id: userStore.user.id }
+    const messageData = {
+      chat_id: selectedChat.value.id,
+      content: text,
+      sender_id: userStore.user.id
+    }
     ws.value.send(JSON.stringify(messageData))
   }
 }
+
 
 const handleSearchInput = () => {
   if (searchQuery.value.trim().length === 0) {

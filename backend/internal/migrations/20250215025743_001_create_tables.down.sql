@@ -1,1 +1,1 @@
-DROP TABLE IF EXISTS messages, conversation_members, conversations, users CASCADE;
+DROP TABLE IF EXISTS messages, conversation_members, conversations, users, unread_messages CASCADE;

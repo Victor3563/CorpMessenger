@@ -25,6 +25,7 @@ CREATE TABLE conversation_members (
     PRIMARY KEY (conversation_id, user_id)
 );
 
+-- Создание таблицы сообщений чата (messages)
 CREATE TABLE messages (
     id SERIAL PRIMARY KEY,
     chat_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
@@ -32,4 +33,12 @@ CREATE TABLE messages (
     content TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     deleted BOOLEAN DEFAULT false
+);
+
+-- create_unread_messages_table.up.sql
+CREATE TABLE unread_messages (
+    chat_id INTEGER NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    last_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (chat_id, user_id)
 );

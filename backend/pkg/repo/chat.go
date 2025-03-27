@@ -130,3 +130,41 @@ func (r *Repository) RemoveMemberFromConversation(convID, userID int) error {
 	}
 	return nil
 }
+
+// возвращает количество непрочитанных сообщений из чата
+func (r *Repository) GetUnreadCount(userID int) (map[int]int, error) {
+	query := `
+		SELECT m.chat_id, COUNT(*) AS unread_count
+		FROM messages m
+		JOIN conversation_members cm ON m.chat_id = cm.conversation_id
+		LEFT JOIN unread_messages lr ON lr.user_id = $1 AND lr.chat_id = m.chat_id
+		WHERE cm.user_id = $1
+		  AND (lr.last_read_at IS NULL OR m.created_at > lr.last_read_at)
+		  AND m.sender_id != $1
+		  AND m.deleted = false
+		GROUP BY m.chat_id
+	`
+	rows, err := r.DB.Query(query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int]int)
+	for rows.Next() {
+		var chatID, count int
+		if err := rows.Scan(&chatID, &count); err != nil {
+			return nil, err
+		}
+		result[chatID] = count
+	}
+	return result, nil
+}
+
+func (r *Repository) UpdateLastRead(userID, chatID int) error {
+	query := `INSERT INTO unread_messages (user_id, chat_id, last_read_at)
+			  VALUES ($1, $2, NOW())
+			  ON CONFLICT (user_id, chat_id) DO UPDATE SET last_read_at = NOW()`
+	_, err := r.DB.Exec(query, userID, chatID)
+	return err
+}

@@ -18,8 +18,12 @@ const props = defineProps({
 const userStore = useUserStore()
 const currentUser = userStore.user ? userStore.user.id : null
 const splitContent = (text) => {
-  return text.split('\n').filter(para => para.trim() !== '')
-}
+    const chunks = []
+    for (let i = 0; i < text.length; i += 70) {
+      chunks.push(text.substring(i, i + 70))
+    }
+    return chunks
+  }
 </script>
 
 <style scoped>
