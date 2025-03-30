@@ -36,7 +36,6 @@ export async function getUserChats(userId) {
 }
 
 export async function createChatAPI(type, name) {
-  // Берем пользователя из localStorage – убедитесь, что после логина в localStorage сохранен объект user
   const storedUser = localStorage.getItem('user');
   if (!storedUser) throw new Error('User not found in localStorage');
   const user = JSON.parse(storedUser);
@@ -138,7 +137,7 @@ export async function updateUserAPI(id, name, email, password) {
     const errorText = await response.text();
     throw new Error(`Failed to update user: ${errorText}`);
   }
-  return response.text(); // или json(), если сервер возвращает объект
+  return response.text();
 }
 
 export async function leaveChatAPI(chatId, userId) {
