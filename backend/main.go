@@ -38,8 +38,6 @@ func start_rep() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	//!!!! Вроде я правильно все понял, но как то пугает. Честно не доконца понял
-	//как с viper работать. Чисто по гайдам работал, но будто много чего упустил
 	connStr := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		config.Database.User, config.Database.Password, config.Database.Host, config.Database.Port,
 		config.Database.DBName, config.Database.SSLMode)

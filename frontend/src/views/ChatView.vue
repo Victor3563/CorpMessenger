@@ -120,7 +120,7 @@ const fetchMessages = async (chatId) => {
   try {
     const msgs = await getMessagesAPI(chatId, 20)
     messages.value = msgs.reverse()
-  } catch (error) {
+  } catch (error) {// или json(), если сервер возвращает объект
     alert(error.message)
   }
 }
@@ -201,7 +201,7 @@ const handleSearchInput = () => {
 const executeSearch = async () => {
   try {
     const results = await findUserAPI(searchQuery.value)
-    searchResults.value = results
+    searchResults.value = results 
   } catch (error) {
     console.error(error)
   }
